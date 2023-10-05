@@ -13,6 +13,47 @@ format:
 
 ## Intro
 
+The first part of the tutorial contrasted the basics of Frequentist statistics with Bayesian statistics. We talked about what the practical advantages of each method are and why Bayesian statistics might be a useful tool for Accounting researchers. In part two we will illustrate how to fit Bayesian models. First we will cover some basic intuition behind MCMC, then we will fit some models to examine the role of team training to reduce internal control deficiency.
+
+## Conceptual understanding of fitting Bayesian models
+
+### Posterior distributions are difficult
+
+Let's say you have some data $y$ and want to compute the posterior of some parameter $\theta$ after seeing $y$. This is difficult.
+
+$$P(\theta \mid y)=\frac{P(y\mid\theta)P(\theta)}{P(y)}$$
+
+As the bayesian updating formula illustrates, first we would need to multiply two probability density functions and then scaled it by another probability density function. The result is often analytically intractable. We cannot compute the resulting function in most cases. There are exceptions, combinations of likelihood and so-called conjugate priors, where the resulting form of the posterior is the same as the prior. Conjugate priors do not exist in every situation however, and they limit the range of possible priors to use. Hence, in modern statistics, we need to resort to sampling methods. 
+
+### The idea behind MCMC
+
+Sampling methods are an amazing and powerful innovation. They allow us to sample from any unknown distribution. It works well in the situation where we have a distribution $P(z) = \frac{1}{Z_P}p(z)$, where it is easy to compute $p(z)$ but hard to compute $Z_P$. This is the case for $P(\theta \mid y)=\frac{P(y\mid\theta)P(\theta)}{P(y)}$. We can often compute $P(y\mid\theta)P(\theta)$ reasonably well. The problem is the scaler $P(y)$, which is very difficult to compute (As it is technically the integral of $P(y\mid\theta)$ over all possible values of $\theta$). However, if we set up the sampling method the right way, we can avoid having to compute $P(y)$.   
+
+The simplest sampling method, the Metropolis Markov Chain Monte Carlo Sampler is a good way of explaining the intuition behind most sampling methods. Compared to more modern samplers Metropolis MCMC is quite inefficient. The tools we are going to use later use a sampler called Hamiltonian MCMC. We won't really cover it here because we don't have time. However, if you are seriously considering using Bayesian methods, you should familiarize yourself a bit with it. For complicated models, you might need to tune the sampler a bit and for that you need to understand how it works. A good starting resource (in general) are the incredibly good teaching materials by Richard McElreath on [YouTube](https://www.youtube.com/@rmcelreath).
+
+Back to Metropolis Hastings MCMC. The following is adapted from [wikipedia](https://en.wikipedia.org/wiki/Metropolis%E2%80%93Hastings_algorithm): Let $f(\theta)$ be a function that is proportional to the desired posterior probability density function $P(\theta \mid y)$. We will repeat the following steps for $n$ number of steps. And we call the series of $n$ steps a *chain*.
+
+1. To begin: Choose an arbitrary point $\theta_0$ to be the first "sample". Choose an arbitrary probability density $g( \theta_t \mid \theta_{t-1} )$. The requirement for this is a function that proposes new "candidates" for the next sample $\theta_t$, given the previous sample value. A common choice is a Gaussian distribution centered at $\theta_{t-1}$, so that points closer to $\theta_{t-1}$ are more likely to be visited next, making the sequence of samples into a random walk. We call this the proposal density function (jumping function)
+2. For each iteration t (the $n$ steps):
+  - Generate a candidate $\theta_t'$ for the next sample using $g( \theta_t \mid \theta_{t-1} )$.
+  - Calculate the acceptance ratio ${\displaystyle \alpha =f(\theta_t')/f(\theta_{t-1})}$, which will be used to decide whether to accept or reject the candidate. 
+  - Generate a uniform random number $u \in [ 0 , 1 ]$.
+  - If $u\leq \alpha$, then accept the candidate by setting $\theta_t = \theta_t'$, else reject the candidate and set $\theta_t = \theta_{t-1}$.
+
+Computing the acceptance ratio is how we avoid having to compute $P(Y)$. Because $f$ is essentially P(y\mid\theta)P(\theta). Which means: 
+
+$$a = \frac{f(\theta_t')}{f(\theta_{t-1})} = \frac{P(y\mid\theta_t')P(\theta_t')}{P(y\mid\theta_{t-1})P(\theta_{t-1})}=\frac{P(\theta_t'\mid y)}{P(\theta_{t-1}\mid y)}$$
+This algorithm proceeds by randomly attempting to move about the sample space, sometimes accepting the moves and sometimes remaining in place. Note that the acceptance ratio $\alpha$ indicates how probable the new proposed sample is with respect to the current sample, according to the posterior distribution. If we attempt to move to a point that is more probable than the existing point (i.e. a point in a higher-density region of $P(\theta\mid y)$ corresponding to an ${\displaystyle \alpha >1\geq u})$, we will always accept the move. 
+
+Because we start at a random spot in parameter space, it might take some time for the chain to "find" the posterior distribution (loosely speaking). Often we run not one of these chains, but many (default is to use 4) to see whether they have converged to traversing the posterior region. To visualize how this all looks, here is an animation borrowed from this great [post](https://mbjoseph.github.io/posts/2018-12-25-animating-the-metropolis-algorithm/) by Maxwell B. Joseph
+
+![](img/mcmc-chains.gif){fig-align="center" width=550px}
+
+
+## The Case
+
+For the rest of part two we will use the following made-up research case:
+
 You want to examine whether team-level training of operating teams helps in reducing internal control deficiencies. Via a national research center, you managed to find firms willing to participate in a field experiment where you randomly assign and conduct team-level training with the help of an advisory firm. You do this for a few months and record the level of internal control deficiencies as reported by internal audits. 
 
 Our question of interest is thus whether team-training is effective at reducing internal control weakness. In addition, we also want to know additional characteristics of any potential team-training effect. Bayesian analysis is particularly suited for these type of questions and we'll use this simple (and unfortunately unrealistic example) to illustrate how to perform Bayesian stats with R.
@@ -222,6 +263,7 @@ prior_summary(fit_negbin)
 #| fig-height: 4
 mcmc_hist(fit_negbin, pars = c("b_Intercept", "b_training", "shape"))
 ```
+
 We should also have a quick look at the chains themselves:
 
 ```{r}
@@ -288,7 +330,7 @@ The summary statistics are based on the empirical histogram of the four markov c
 ### Checking the sampling
 
 ```{r}
-parnames(fit_varint)
+variables(fit_varint)
 ```
 
 
@@ -336,7 +378,8 @@ fit_varslopes <- brm(
   prior = c(
     prior("normal(0, 10)", class = "Intercept"),
     prior("normal(0, 10)", class = "b", coef = "training"),
-    prior("normal(0, 1)", class = "sd", coef = "Intercept", group = "firm_id")
+    prior("normal(0, 1)", class = "sd", coef = "Intercept", group = "firm_id"),
+    prior(lkj(2), class = "cor")
     ),
   chains = 4, cores = 4,
   refresh = 0
@@ -355,20 +398,37 @@ prior_summary(fit_varslopes)
 
 The summary statistics are based on the empirical histogram of the four markov chains we fit. Here is how they looked:
 
-### Checking the sampling
+### Visualizing varying slopes
 
 ```{r}
-parnames(fit_varslopes)
+variables(fit_varslopes)
 ```
 
+
+```{r}
+#| fig-align: center
+#| fig-width: 6
+#| fig-height: 6
+mcmc_areas(fit_varslopes,
+           pars = paste0("r_firm_id[", 1:10,",training]"),
+           prob = 0.95)
+```
+
+
+### Checking the sampling
 
 ```{r}
 #| warning: false
 #| fig-align: center
 #| fig-width: 8
 #| fig-height: 4
-mcmc_hist(fit_varslopes)
+mcmc_hist(
+  fit_varslopes, 
+  pars = c("b_Intercept", "b_training", "shape", "sd_firm_id__Intercept",
+           "cor_firm_id__Intercept__training", "sd_firm_id__training")
+  )
 ```
+
 We should also have a quick look at the chains themselves:
 
 ```{r}
