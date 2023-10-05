@@ -1,0 +1,407 @@
+---
+title: "Bayes Workshop Part 2"
+author: "Harm"
+date: "2023-10-04"
+format: 
+  html:
+    toc-location: left
+    fontsize: "10"
+    code-fold: false
+    df-print: kable
+    highlight-style: "github"
+---
+
+## Intro
+
+You want to examine whether team-level training of operating teams helps in reducing internal control deficiencies. Via a national research center, you managed to find firms willing to participate in a field experiment where you randomly assign and conduct team-level training with the help of an advisory firm. You do this for a few months and record the level of internal control deficiencies as reported by internal audits. 
+
+Our question of interest is thus whether team-training is effective at reducing internal control weakness. In addition, we also want to know additional characteristics of any potential team-training effect. Bayesian analysis is particularly suited for these type of questions and we'll use this simple (and unfortunately unrealistic example) to illustrate how to perform Bayesian stats with R.
+
+## Setup
+
+```{r setup}
+#| results: hide
+#| message: false
+library(ggplot2)
+library(bayesplot)
+library(brms)
+box::use(
+  collapse[qsu]
+)
+options(brms.backend = "cmdstanr")
+source("hhs-ggtheme.R")
+
+# seed for R's pseudo-RNGs, not Stan's
+set.seed(1123)
+```
+
+
+
+## The data
+
+```{r load-data-1}
+dta <- readRDS('data/contrdef.rds')
+str(dta)
+```
+
+We have access to the following important fields:
+
+* `firm_id`: The unique firm identifier
+* `quarter`: The number of the quarter in which the training was conducted
+* `firm_size`: The amount of revenues in that quarter in T\$
+* `training`: How many trainings were conducted in that firm in that quarter
+* `contrdef`: The count of internal control deficiencies found in a 90 day window after the end of the quarter
+
+
+### Descriptives  of the data 
+
+```{r describe-data}
+c(
+  "n firms" = length(unique(dta$firm_id)),
+  "n quarters" = length(unique(dta$quarter))
+)
+```
+
+```{r describe-data-2}
+qsu(dta)
+```
+
+```{r data-plot-1}
+#| fig-align: center
+#| fig-width: 6
+#| fig-height: 4
+ggplot(dta, aes(x = contrdef)) +
+  geom_bar()
+```
+
+## Modeling the data DGP
+
+### Starting point is our dependent variable
+
+We have count data. That means we can think of various choices for processes generating count data. We can go with a normal distribution which basically means a normal linear regression. However, normal distributions are really more suitable for continuous data. We have count data---integer numbers that are distinct. One candidate distribution we could use to model the data generation is a Poisson distribution. We need to be careful here though. Poisson random variables have a special property: their variance equals the mean. Real-world count data very frequently has a variance that is higher than the mean. We call this ``over-dispersed'' data. There are some ways to model this and we will use them. For didactic purposes we'll start with poisson and test for over-dispersion. 
+
+### The rest of the model
+
+Given that we have chosen a Poisson regression as our main distribution, we define the likelihood as follows (For firm $i = 1,\dots,10$ at time (quarter) $t = 1,\dots,12$): 
+
+$$
+\begin{align*}
+\textrm{contrdef}_{i,t} & \sim \textrm{Poisson}(\lambda_{i,t}) \\
+\lambda_{i,t} & = \exp{(\eta_{i,t})} \\
+\eta_{i,t} &= b_0 + b_1 \, \textrm{training}_{i,t}
+\end{align*}
+$$
+
+## Fitting a simple Bayesian model
+
+For more complicated models we prefer to code the model directly in the [stan](https://mc-stan.org/) language and use [cmdstanr](https://mc-stan.org/cmdstanr/) to fit it. The models in this tutorial can all be fit using simple formulas and using the awesome [brms](https://cran.r-project.org/web/packages/brms/index.html) package. 
+
+```{r}
+#| message: false
+#| warning: false
+fit_simple <- brm(
+  contrdef ~ 1 + training,
+  family = poisson,
+  data = dta,
+  prior = c(
+    prior("normal(0, 10)", class = "Intercept"),
+    prior("normal(0, 10)", class = "b", coef = "training")
+    ),
+  chains = 4, cores = 4,
+  refresh = 0
+)
+```
+
+### Fit summary
+
+```{r}
+summary(fit_simple)
+```
+
+```{r}
+prior_summary(fit_simple)
+```
+
+The summary statistics are based on the empirical histogram of the four markov chains we fit. Here is how they looked:
+
+### Checking the sampling
+
+```{r}
+#| warning: false
+#| fig-align: center
+#| fig-width: 8
+#| fig-height: 4
+mcmc_hist(fit_simple, pars = c("b_Intercept", "b_training"))
+```
+We should also have a quick look at the chains themselves:
+
+```{r}
+#| fig-align: center
+#| fig-width: 8
+#| fig-height: 8
+bayesplot::mcmc_trace(fit_simple)
+```
+
+### Checking the fit
+
+Above we talked about the issue of over-dispersion. Let's take a look at our model "fit" versus the actual data
+
+```{r}
+#| fig-align: center
+#| fig-width: 6
+#| fig-height: 4
+y_pred <- posterior_predict(fit_simple)
+ppc_dens_overlay(y = dta$contrdef, yrep = y_pred[1:200,])
+```
+
+We are underpredicting zero counts, overpredicting middle range counts and maybe slightly underpredicting large counts. That looks like our poisson model with its property that the variance should equal the mean has issues fitting well. $\lambda$, controls both the
+expected counts and the variance of these counts. We can fix that. 
+
+## Modelling over-dispersion
+
+A common DGP model for fitting overdispersed data is the negative-binomial distribution. We also add a two control variables. 
+
+$$
+\begin{align*}
+\textrm{contrdef}_{i,t} & \sim \textrm{Neg-Binomial}(\lambda_{i,t}, \phi) \\
+\lambda_{i,t} & = \exp{(\eta_{i,t})} \\
+\eta_{i,t} &= b_0 + b_1 \,\textrm{training}_{i,t} + \textrm{log\_firm\_size}_{i}
+\end{align*}
+$$
+
+To understand what is going on here, just note that the negative binomial pdf is parameterized in terms of its log-mean, $\eta$, and it has a precision, $\phi$, that affects it's variance. The mean and variance of $y = \textrm{contrdef}$ is thus:
+
+$$
+\mathbb{E}[y] \, = \lambda = \exp(\eta)
+$$
+
+$$
+\text{Var}[y] = \lambda + \lambda^2/\phi = \exp(\eta) + \exp(\eta)^2 / \phi.
+$$
+
+As $\phi$ gets larger the term $\lambda^2 / \phi$ approaches zero and so the variance of the negative-binomial approaches $\lambda$, i.e., the negative-binomial gets closer and closer to the Poisson.
+
+We include $\textrm{log\_firm\_size}_{i}$ as an *exposure term* (note, it does not have a coefficient in front). Our previous poisson model's mean parameter is a rate of deficiencies in the next quarter (90 days). However, in a way the "deficiency process" also plays out over a firm's size (bigger, more complex firms have more opportunities for deficiencies to occur). We have revenues in T\$ as a measure of firm size. If we multiply $\lambda$ by $\textrm{firm\_size}_{i}$, we can interpret our coefficients as shifting a rate of deficiencies per T\$ revenues per next 90 days. The last trick is to log firm size in order to put it into $\eta$. 
+
+## Fitting a negative binomial model
+
+```{r}
+#| message: false
+#| warning: false
+fit_negbin <- brm(
+  contrdef ~ 1 + training + offset(log(firm_size)),
+  family = negbinomial,
+  data = dta,
+  prior = c(
+    prior("normal(0, 10)", class = "Intercept"),
+    prior("normal(0, 10)", class = "b", coef = "training")
+    ),
+  chains = 4, cores = 4,
+  refresh = 0
+)
+```
+
+### Fit summary
+
+```{r}
+summary(fit_negbin)
+```
+
+The coefficients have changed. Note that partly this is also because we are now looking at the rate of deficiencies per 90 days per T\$ in revenues
+
+```{r}
+prior_summary(fit_negbin)
+```
+
+### Checking the sampling
+
+```{r}
+#| warning: false
+#| fig-align: center
+#| fig-width: 12
+#| fig-height: 4
+mcmc_hist(fit_negbin, pars = c("b_Intercept", "b_training", "shape"))
+```
+We should also have a quick look at the chains themselves:
+
+```{r}
+#| fig-align: center
+#| fig-width: 12
+#| fig-height: 8
+bayesplot::mcmc_trace(fit_negbin)
+```
+
+### Checking the model fit
+
+Above we talked about the issue of over-dispersion. Let's take a look at our model "fit" versus the actual data
+
+```{r}
+#| fig-align: center
+#| fig-width: 6
+#| fig-height: 4
+y_pred2 <- posterior_predict(fit_negbin)
+ppc_dens_overlay(y = dta$contrdef, yrep = y_pred2[1:200,])
+```
+
+This looks like a much better fit. 
+
+## The power of Bayes: Multilevel models
+
+We are not necessarily done here. We purposefully framed the question as a field experiment, so that we do not have to worry about confounding issues. Training is basically randomized. We can still try to get a more precise estimate. And we can also see if there is meaningful variation in the effectiveness of training across firms. Especially the last question is something that multilevel models employing priors can really help with. 
+
+We will first built a model that only includes firm-specific intercepts. Afterwards we'll add firm-specific slopes for $training$ as well. 
+
+## Fitting a varying intercepts model
+
+```{r}
+#| message: false
+#| warning: false
+fit_varint <- brm(
+  contrdef ~ 1 + training + offset(log(firm_size)) + (1 | firm_id),
+  family = negbinomial,
+  data = dta,
+  prior = c(
+    prior("normal(0, 10)", class = "Intercept"),
+    prior("normal(0, 10)", class = "b", coef = "training"),
+    prior("normal(0, 1)", class = "sd", coef = "Intercept", group = "firm_id")
+    ),
+  chains = 4, cores = 4,
+  refresh = 0
+)
+```
+
+### Fit summary
+
+```{r}
+summary(fit_varint)
+```
+
+There is some variation explained by varying intercepts. But it does not seem like it's doing much in terms of improving the model fit. 
+
+
+```{r}
+prior_summary(fit_varint)
+```
+
+The summary statistics are based on the empirical histogram of the four markov chains we fit. Here is how they looked:
+
+### Checking the sampling
+
+```{r}
+parnames(fit_varint)
+```
+
+
+```{r}
+#| warning: false
+#| fig-align: center
+#| fig-width: 8
+#| fig-height: 4
+mcmc_hist(fit_varint)
+```
+We should also have a quick look at the chains themselves:
+
+```{r}
+#| fig-align: center
+#| fig-width: 8
+#| fig-height: 8
+bayesplot::mcmc_trace(
+  fit_varint, 
+  pars = c("b_Intercept", "b_training", "shape", "sd_firm_id__Intercept")
+  )
+```
+
+### Checking the fit
+
+Above we talked about the issue of over-dispersion. Let's take a look at our model "fit" versus the actual data
+
+```{r}
+#| fig-align: center
+#| fig-width: 6
+#| fig-height: 4
+y_pred <- posterior_predict(fit_varint)
+ppc_dens_overlay(y = dta$contrdef, yrep = y_pred[1:200,])
+```
+
+
+## Fitting a varying intercepts varying slopes model
+
+```{r}
+#| message: false
+#| warning: false
+fit_varslopes <- brm(
+  contrdef ~ 1 + training + offset(log(firm_size)) + (1 + training| firm_id),
+  family = negbinomial,
+  data = dta,
+  prior = c(
+    prior("normal(0, 10)", class = "Intercept"),
+    prior("normal(0, 10)", class = "b", coef = "training"),
+    prior("normal(0, 1)", class = "sd", coef = "Intercept", group = "firm_id")
+    ),
+  chains = 4, cores = 4,
+  refresh = 0
+)
+```
+
+### Fit summary
+
+```{r}
+summary(fit_varslopes)
+```
+
+```{r}
+prior_summary(fit_varslopes)
+```
+
+The summary statistics are based on the empirical histogram of the four markov chains we fit. Here is how they looked:
+
+### Checking the sampling
+
+```{r}
+parnames(fit_varslopes)
+```
+
+
+```{r}
+#| warning: false
+#| fig-align: center
+#| fig-width: 8
+#| fig-height: 4
+mcmc_hist(fit_varslopes)
+```
+We should also have a quick look at the chains themselves:
+
+```{r}
+#| fig-align: center
+#| fig-width: 8
+#| fig-height: 8
+bayesplot::mcmc_trace(
+  fit_varslopes, 
+  pars = c("b_Intercept", "b_training", "shape", "sd_firm_id__Intercept",
+           "cor_firm_id__Intercept__training", "sd_firm_id__training")
+  )
+```
+
+### Checking the fit
+
+Above we talked about the issue of over-dispersion. Let's take a look at our model "fit" versus the actual data
+
+```{r}
+#| fig-align: center
+#| fig-width: 6
+#| fig-height: 4
+y_pred <- posterior_predict(fit_varslopes)
+ppc_dens_overlay(y = dta$contrdef, yrep = y_pred[1:200,])
+```
+
+
+## Model comparison
+
+```{r}
+fit_simple <- add_criterion(fit_simple, "loo")
+fit_negbin <- add_criterion(fit_negbin, "loo")
+fit_varint <- add_criterion(fit_varint, "loo")
+fit_varslopes <- add_criterion(fit_varslopes, "loo")
+loo_compare(fit_simple, fit_negbin, fit_varint, fit_varslopes)
+```
+
