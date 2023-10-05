@@ -1,0 +1,1018 @@
+---
+code-line-numbers: false
+format:
+  revealjs:
+    output-dir: docs
+    theme: [default, hs-pres.scss]
+    css: hs-pres.css
+    height: 900
+    width: 1600
+    auto-stretch: false
+    footer: <p style="font-size:.8em;"><a href="https://harmschuett.com">Intro to Bayes</a> by [Harm Schütt](https://harmschuett.com)</p>
+    slide-number: c/t
+    highlight-style: github
+    chalkboard: true
+---
+
+##  {#TitleSlide data-menu-title="TitleSlide" background-color="#303436" background-image="img/pres-title.png" background-position="left" background-size="contain"}
+
+::: {style="position: absolute; left: 580px; top: 200px; height: 525px; width: 1120px; background-color: rgba(76,76,76,0.5); padding: 20px; padding-left: 50px; border-radius: 5px;"}
+[A Brief Intro to Bayesian Inference for Accounting Research]{style="font-size: 90px; font-weight: bold; line-height: 1em; margin: 0px"}
+
+<br>
+
+[Harm Schütt, Tilburg University]{style="font-size: 60px; font-weight: bold;"}
+
+[2023-10-05]{style="font-size: 50px;font-weight: bold;"}
+:::
+
+::: footer
+<p style="font-size:.6em; color:white;">
+Photo by <a style="color:white;" href="https://unsplash.com/@rihok?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Riho Kroll</a>
+</p>
+:::
+
+```{r setup}
+library(tidyverse)
+library(broom)
+library(patchwork)
+library(gganimate)
+library(magick)
+library(gt)
+source("hhs-ggtheme.R")
+```
+
+
+
+
+# Part 1<BR> Why learn something about Bayesian Statistics?
+
+1. What is Bayesian statistics?
+
+2. What is it useful for? 
+
+
+
+## What is Bayesian statistics? (oversimplified)
+
+<BR>
+
+::: {.fragment .fade-in}
+::: columns
+::: {.column width="50%"}
+Frequentist: $P(Data|Hypothesis)$
+::: 
+::: {.column width="50%"}
+Bayesian: $P(Hypothesis|Data)$
+::: 
+::: 
+:::
+::: r-stack
+![](img/bayes.png){.fragment height="600" .fade-in-then-out}
+:::
+
+
+
+
+
+## $P(H | D) = (P(D|H) * P(H)) / P(D)$ means updating
+
+<BR>
+
+<div style="text-align: center">
+Example: Number of successful investments $y \sim Binom(y|N,\theta)$
+</div>
+
+::: {.fragment .fade-in}
+```{r}
+#| warning: false
+#| fig-width: 12
+#| fig-height: 6
+#| fig-dpi: 100
+#| fig-align: center
+n <- 15
+y<- 8
+theta <- seq(0, 1, len = 1000)
+likelihood <- dbinom(y, n, theta)
+# first example: uniform prior
+alpha <- 1; beta <- 1
+pri1<- dbeta(theta, alpha, beta)
+post1 <- dbeta(theta, alpha+y, beta+n-y)
+
+# second example: informative prior
+alpha <- 1; beta <- 5
+pri2 <- dbeta(theta, alpha, beta)
+post2 <- dbeta(theta, alpha+y, beta+n-y)
+
+baydata2 <- rbind(data.frame(Prior="Uninformative", prior=pri1, posterior=post1, theta=theta),
+                  data.frame(Prior="Pessimistic", prior=pri2, posterior=post2, theta=theta)) %>%
+  arrange(Prior, theta)
+
+
+# fill_colors <- c("#EB811B", "#393939")
+fill_colors <- c("grey60", "grey30")
+fill_colors <- c("dodgerblue", "dodgerblue4")
+p7 <- ggplot(data=baydata2) +
+  geom_area(aes(x=theta, y=prior, fill=Prior, color=Prior, group=Prior), alpha=.5, position = "identity") +
+  labs(y="Density priors",
+       x=quote(theta),
+       title=quote("Prior: P("*theta*")")) +
+  scale_fill_manual(values=fill_colors) +
+  scale_color_manual(values=fill_colors) +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_continuous(expand=expansion(mult = c(0,0.02))) +
+  
+  guides(fill=guide_legend(ncol=2))
+p8 <- ggplot() +
+  geom_line(aes(x=theta, y=likelihood), color="goldenrod") +
+  geom_area(aes(x=theta, y=likelihood), alpha=.5,color="goldenrod", fill="goldenrod") +
+  labs(y="Likelihood (Info in the data)",
+       x=quote(theta),
+       title=quote("Likel.: P(Data|"*theta*")")) +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_continuous(expand=expansion(mult = c(0,0.02)))
+p9 <- ggplot(data=baydata2) +
+  geom_area(aes(x=theta, y=posterior, fill=Prior, color=Prior, group=Prior), alpha=.5, position = "identity") +
+  labs(y="Density posterior",
+       x=quote(theta),
+       title=quote("Posterior: P("*theta*"|Data)")) +
+  scale_fill_manual(values=fill_colors) +
+  scale_color_manual(values=fill_colors) +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_continuous(expand=expansion(mult = c(0,0.02)))
+
+combined <- p7 + p8 + p9 & theme(legend.position = "bottom")
+combined + plot_layout(guides = "collect") + plot_annotation(
+  title = 'How skillful is our management team?',
+  subtitle = quote("We model skill as prob. of investment success ("*theta*"). Our data: 8 out of the team's 15 investments were successful")
+)
+```
+:::
+
+
+
+## Why learn a bit of Bayesian statistics? {.center}
+
+::: {.absolute top="640" left="0"}
+<p style="font-size: 0.3em;">
+Photo by <a href="https://unsplash.com/@introspectivedsgn?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Erik Mclean</a>
+</p>
+:::
+::: columns
+::: {.column width="23%"}
+![](img/workbench.png){height="530"}
+:::
+::: {.column width="70%"}
+::: {.fragment .fade-in}
+Not because of the philosophical differences!
+:::
+::: {.fragment .fade-in}
+To better understand frequentist statistics
+:::
+::: {.fragment .fade-in}
+<p style="color: #CC9933">
+To add another tool to our workbench:
+</p>
+:::
+::: {.fragment .fade-in}
+-   Sometimes the data is not informative enough
+:::
+::: {.fragment .fade-in}
+-   Priors and DGP helps encode additional information/assumptions
+:::
+::: {.fragment .fade-in}
+-   Useful for constructing finer measures and measuring latent constructs
+:::
+:::
+:::
+
+
+
+
+
+## Example: Precise firm-level measures
+
+$$R_{i,t} = a_i + b_i * X_{i,t} + u_{i,t}$$
+
+::: r-stack
+![](img/ex-ab4.png){height="400"}
+
+![](img/ex-g4.png){.fragment height="500"}
+:::
+<div style="text-align: center">
+Cross-learning the prior. Helps discipline noisy estimates
+</div>
+
+
+
+
+
+## Example: Modeling uncertainty
+
+::: r-stack
+![](img/ex-ab3.png){.fragment .fade-out height="400"}
+
+![](img/ex-g3.png){.fragment height="600"}
+:::
+<div style="text-align: center">
+When we do not trust our models we should average. Increases power and reduce false positives in tests for opportunistic earnings management
+</div>
+
+
+
+
+
+## Example: Modelling hidden dynamics (1)
+
+<BR>
+
+::: r-stack
+![](img/ex-ab1.png){height="400"}
+
+![](img/ex-g1.png){.fragment height="400"}
+:::
+<div style="text-align: center">
+How well do earnings reveal an unobserved true state of the firm?
+</div>
+
+
+
+
+
+## Example: Modelling hidden dynamics (2)
+
+::: r-stack
+![](img/ex-ab2.png){height="400"}
+:::
+<div style="text-align: center">
+Disclosures become more (less) frequent when investors’perception of the firm is worse (better) than the true profitability
+</div>
+
+
+
+
+
+
+## Summary: Where does Bayes help? {.center}
+
+- Modeling heterogeneity. E.g., firm-level measures
+- Modeling uncertainty
+- Modeling latent constructs
+
+Modeling a data-generating-process (incl. priors) allows us to include more information/assumptions into our analysis
+
+
+
+
+
+# Part 2<BR> The Frequentist Baseline
+
+1.  Data is random. The logic behind hypothesis tests.
+
+2.  The importance of test power
+
+3.  Overfitting is a serious issue
+
+
+
+
+
+
+## Some simulated datasets
+
+-   Simulate 50 samples from: $y = 1 + 2 \times x + u,\ u\sim N(0, 20)$.
+-   $x$ is only drawn once (not 50 times) from: $x \sim N(0,1)$.
+
+
+```{r sim1}
+#| echo: true
+set.seed(888)
+n_samples <- 50
+n_obs <- 50
+x_fix <- rnorm(n = n_obs, 0, 1)
+gen_data <- function(n) tibble(u = rnorm(n, 0, 20), x = x_fix, y = 1 + 2 * x_fix + u)
+samples <- tibble(id = 1:n_samples)
+samples$data <- map(rep.int(n_obs, n_samples), gen_data)
+```
+
+::: columns
+::: {.column width="50%"}
+```{r sim2}
+#| echo: true
+samples
+```
+:::
+
+::: {.column width="50%"}
+```{r sim3}
+#| echo: true
+samples[[1, "data"]][[1]]
+```
+:::
+:::
+
+## Estimates vary across samples
+
+$$y = a_0 + a_1 \times x + u$$
+
+```{r olsfits}
+samples$ols_fit <- map(samples$data, function(dat) tidy(lm(y ~ x, data = dat)))
+ols_estimates <- samples %>%
+  unnest(ols_fit) %>%
+  mutate(param = if_else(term == "x", "a1", "a0")) %>%
+  select(id, param, estimate) %>%
+  spread(key = param, value = estimate) %>%
+  mutate(
+    plabs = paste0("(", round(a0, 1), ",", round(a1, 1), ")"),
+    first_sample = as.factor(c(1, rep.int(0, times = n_samples - 1)))
+  )
+ols_estimates
+```
+
+-   Where is the variation in $a_0$, $a_1$ coming from?
+-   Why? What are we trying to simulate?
+
+## Unmeasured influences cause estimates to vary
+
+$$y = 1 + 2 \times x + u ,\ u \sim N(0, 20),\ x\sim N(0,1)$$
+
+```{r fig1}
+#| fig-width: 14
+#| fig-height: 7
+#| fig-dpi: 100
+#| fig-align: center
+range_x <- range(ols_estimates$a0)
+range_y <- range(ols_estimates$a1)
+nudge_x <- 0.1
+sample_a0 <- ols_estimates$a0[1]
+sample_a1 <- ols_estimates$a1[1]
+r <- sd(ols_estimates$a1)
+f1.panA <-
+  ols_estimates %>%
+  ggplot(aes(x = a0, y = a1, shape = first_sample, color = first_sample)) +
+  geom_point(size = 4) +
+  xlim(range_x) +
+  ylim(range_y) +
+  scale_color_manual(values = c("gray80", "black")) +
+  labs(
+    x = expression(" Intercept estimate " ~ hat(a)[0]),
+    y = expression(" Slope estimate " ~ hat(a)[1]),
+    subtitle = "Sampling variation"
+  ) +
+  geom_segment(aes(color = first_sample), xend = 1, yend = 2, linetype = 2, alpha = 0.5) +
+  annotate("point", x = 1, y = 2, color = "black", size = 4, shape = 15) +
+  annotate("text", x = 1.4, y = 1.9, label = "Truth (1, 2)", hjust = 0, color = "black", size = 5) +
+  annotate("text",
+    x = sample_a0 + 0.4,
+    y = sample_a1 + -0.1,
+    label = paste0("Sample (", round(sample_a0, 1), ", ", round(sample_a1, 1), ")"),
+    hjust = 0, color = "black", size = 5
+  ) +
+  annotate("point", x = 0, y = 0, color = "black", size = 4, shape = 15) +
+  annotate("text", x = 0.4, y = -0.1, label = "H0 (0, 0)", hjust = 0, color = "black", size = 5) +
+  theme(legend.position = "none", aspect.ratio=1)
+f1.panB <-
+  ols_estimates %>%
+  ggplot(aes(x = a0, y = a1, shape = first_sample, color = first_sample)) +
+  geom_point(size = 4) +
+  xlim(range_x) +
+  ylim(range_y) +
+  scale_color_manual(values = c("gray80", "black")) +
+  labs(
+    x = expression(" Intercept estimate " ~ hat(a)[0]),
+    y = expression(" Slope estimate " ~ hat(a)[1]),
+    subtitle = "Distance from hypothesis"
+  ) +
+  theme(legend.position = "none") +
+  geom_segment(aes(color = first_sample), xend = 0, yend = 0, linetype = 2, alpha = 0.5) +
+  annotate("point", x = 0, y = 0, color = "black", size = 4, shape = 15) +
+  annotate("text", x = 0.4, y = -0.1, label = "H0 (0, 0)", hjust = 0, color = "black", size = 5) +
+  annotate("text",
+    x = sample_a0 + 0.4,
+    y = sample_a1 + -0.1,
+    label = paste0("Sample (", round(sample_a0, 1), ", ", round(sample_a1, 1), ")"),
+    hjust = 0, color = "black", size = 5
+  ) +
+  geom_hline(yintercept = c(r, -r), color = "black") +
+  geom_segment(
+    x = -4, xend = -4, y = -r, yend = r, color = "black",
+    arrow = arrow(length = unit(0.07, "inches"), ends = "both", type = "closed")
+  ) +
+  annotate("text",
+    x = -3.4, y = -2.2,
+    size = 5, hjust = 0, vjust = 0, color = "black",
+    label = "One standard deviation"
+  ) +
+  theme(legend.position = "none", aspect.ratio=1)
+fig1 <- f1.panA + f1.panB + plot_annotation(tag_levels = "A")
+fig1
+```
+
+## Hypothesis tests judge the data's distance from $H_0$
+
+::: {.columns style="display: flex !important; height: 90%;"}
+::: {.column width="50%"}
+Test logic:
+
+::: incremental
+-   Compute a "normalized distance" from $H_0$ using S.E.
+-   Figure out what distribution describes distance (assumptions)
+-   Pick a threshold. When is an estimate considered too distant?
+-   Too distant means: Unlikely to be generated under $H_0$
+:::
+
+::: {.fragment .fade-in}
+::: {style="font-size: 85%; color:#CC9933"}
+Normalization: S.E. depends on assumed behavior of unmeasured determinants ($u$) and $N$
+:::
+:::
+:::
+
+::: {.column width="50%" style="display: flex; justify-content: center; align-items: center;"}
+```{r fig2}
+#| fig-width: 7
+#| fig-height: 6
+#| fig-dpi: 100
+t_dist <- data.frame(ps = rt(n=10000, df=n_obs-2))
+test_stat <- 1.65
+quant_test <- round(1 - pt(test_stat, df=n_obs-2), 2)
+
+fZ <-
+  ggplot(data=t_dist, aes(x=ps)) +
+  geom_histogram(bins=50, color="white", fill="gray30") +
+  geom_segment(color="red",
+               x=test_stat, y=0,
+               xend=test_stat, yend=200) +
+  geom_segment(color="red",
+               x=-test_stat, y=0,
+               xend=-test_stat, yend=200) +
+  # geom_area(color=high_red, fill=high_red, alpha=0.5) +
+  annotate("text", x=test_stat, y=200,
+           size=5, hjust=0, vjust=0,
+           label=paste0("P(t >= ", test_stat, " | H0) = ", quant_test)) +
+  annotate("text", x=-test_stat, y=200,
+           size=5, hjust=1, vjust=0,
+           label=paste0("P(t <= -", test_stat, " | H0) = ", quant_test)) +
+  scale_y_continuous(expand=expansion(mult = c(0,0.02))) +
+  labs(x = expression("Normalized distance from Null:  "*(hat(a)-H0)/SE),
+       y = NULL,
+       subtitle = "Occurrence in repeated sampling") +
+  theme(
+    legend.position = "none",
+    panel.grid.major.y = element_blank()
+  )
+fZ
+```
+:::
+:::
+
+## Be careful interpreting coefficient magnitudes in low power situations
+
+::: columns
+::: {.column width="40%"}
+::: incremental
+-   Coefficients very large for those intervals that do not include zero
+-   Gets worse with less power (unexplained variance vs. N obs)
+-   "That which does not destroy my statistical significance makes it stronger" fallacy
+:::
+:::
+
+::: {.column width="60%"}
+```{r fig3}
+#| fig-width: 10
+#| fig-height: 6
+#| fig-dpi: 100
+#| fig-align: center
+conf_ints <- 
+  map(samples$data, function(dat) confint(lm(y ~ x, data = dat))["x",]) |> 
+  bind_rows() |> 
+  mutate(
+    Sample = row_number(),
+    Mean = `97.5 %` - (`97.5 %` - `2.5 %`)/2
+    )
+
+ggplot(conf_ints, aes(x = Sample, y = Mean)) +
+  geom_point() + 
+  geom_errorbar(aes(ymin = `2.5 %`, ymax = `97.5 %`)) + 
+  geom_hline(yintercept = 2, linewidth = .5, linetype = "dashed", color = "grey") + 
+  geom_hline(yintercept = 0) + 
+  labs(
+    x = "Sample Number",
+    y = "Slope Magnitude (True value = 2)",
+    title = "95% confidence intervals for the 50 samples",
+    subtitle = "Test power: ~12%, Prob. type-S error: ~6%"
+  ) +
+  theme(
+    panel.grid.major.x = element_blank()
+  )
+```
+:::
+:::
+
+
+
+
+
+## But my N is \> 200.000 obs. Power is not an issue
+
+<BR>
+
+::: {.fragment .fade-in}
+
+<div style="text-align: center">
+Well ... Let's remember this picture
+</div>
+:::
+
+::: r-stack
+![](img/ex-g4.png){.fragment height="500"}
+:::
+
+::: {.fragment .fade-in}
+
+<div style="text-align: center">
+**Effective** N goes down quickly once we want to estimate heterogeneity in something we care about
+</div>
+:::
+
+
+## And then there is overfitting...
+
+::: columns
+
+::: {.column width="60%"}
+<div style="text-align: center">
+Drawing 5 samples from $y \sim N(-200 + 10 * x, (x+30)^2$
+</div>
+
+```{r}
+#| message: false
+#| echo: false
+#| fig-align: center
+set.seed(33)
+Xsim <- sort(runif( n=30, 30, 65))
+draw_sample <- function(i, NN = 30){
+  Ysim <- rnorm(NN , 100 + 10*(Xsim-30), Xsim*2 )
+  d <- tibble(Id = i, y = Ysim, x = Xsim)
+  d$R2_1 <- round(summary(lm(y ~ x, data = d))$r.squared, 2)
+  d$R2_2 <- round(summary(lm(y ~ poly(x,2), data = d))$r.squared, 2)
+  return(d)
+}
+dta <- 
+  map(1:5, \(k) draw_sample(k)) |> 
+  list_rbind()
+
+
+  
+p1 <- 
+  dta |> 
+  ggplot(aes(x, y, label = round(R2_1, 2))) + 
+  geom_abline(intercept = -200, slope = 10, color = "grey80")+ 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE, formula = 'y ~ x',
+              color = "goldenrod") +
+  transition_states(Id) +
+  ease_aes('linear') +
+  labs(title = "About right",
+       subtitle = "y = a + b * x | R-Squared: {unique(dta$R2_1[dta$Id == closest_state])} | Sample: {closest_state}")
+p2 <- 
+  dta |> 
+  ggplot(aes(x, y)) + 
+  geom_abline(intercept = -200, slope = 10, color = "grey80")+
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE, formula = 'y ~ poly(x, 2)',
+              color = "goldenrod")+
+  transition_states(Id) +
+  ease_aes('linear') +
+  labs(title = "Overfit",
+       subtitle = "y = a + b * x + c * x^2 | R-Squared: {unique(dta$R2_2[dta$Id == closest_state])} | Sample: {closest_state}" 
+       )
+
+
+p1_gif <- animate(p1, width = 400, height = 400)
+p2_gif <- animate(p2, width = 400, height = 400)
+
+p1_mgif <- image_read(p1_gif)
+p2_mgif <- image_read(p2_gif)
+new_gif <- image_append(c(p1_mgif[1], p2_mgif[1]))
+for(i in 2:51){
+  combined <- image_append(c(p1_mgif[i], p2_mgif[i]))
+  new_gif <- c(new_gif, combined)
+}
+
+new_gif
+```
+:::
+
+::: {.column width="40%"}
+<div style="text-align: center">
+Overfitting means we fitted sample idiosyncrasies
+</div>
+```{r}
+#| tbl-cap: "Differences in prediction errors (polynomial model MSE - linear model MSE)"
+formulae <- c(linear = y ~ x, poly = y ~ poly(x, 2))
+m <- 
+  map(formulae, \(ff)
+    dta |> 
+      split(dta$Id) |> 
+      map(\(m) lm(ff, data = m))
+    )
+
+y_preds <- tibble()
+for (k in 1:5) {
+  for (h in 1:5) {
+    y_preds <- rbind(y_preds, tibble(
+      Model = k, 
+      Sample = h,
+      y = dta$y[dta$Id == h],
+      pred_y = predict(m$linear[[k]], newdata = dta[dta$Id == h, ]),
+      Type = "linear"
+    ))
+    y_preds <- rbind(y_preds, tibble(
+      Model = k, 
+      Sample = h,
+      y = dta$y[dta$Id == h],
+      pred_y = predict(m$poly[[k]], newdata = dta[dta$Id == h, ]),
+      Type = "poly"
+    ))
+  }
+}
+
+table_raw <- 
+  y_preds |> 
+  summarize(
+    MSE = mean((y - pred_y)^2),
+    .by = c(Model, Sample, Type)
+  )
+
+table_prepped <- 
+  table_raw |> 
+  pivot_wider(names_from = Type, values_from = MSE) |>
+  mutate(
+    MSE_poly_vs_linear = poly - linear,
+    insample = if_else(Model == Sample, 1, 0)
+  ) |> 
+  select(-linear, -poly) |> 
+  arrange(Model, -insample, Sample) |> 
+  summarize(MeanMSE = round(mean(MSE_poly_vs_linear), 1), .by = c(Model, insample)) |> 
+  pivot_wider(names_from = insample, values_from = MeanMSE) |> 
+  rename(
+    Sample = Model, 
+    `In-Sample MSE Difference` = `1`, 
+    `Avg. Out-of-Sample MSE Difference` = `0`
+  )
+table_prepped |> 
+  gt() |> 
+  opt_stylize(style = 1, color = "gray") 
+```
+:::
+:::
+
+
+
+
+## Summary: Frequentist Statistics is great, but: {.center}
+
+- Right model: Significant estimates in low power situations are often way off 
+- Model uncertainty: Overfitting can occur quite quickly
+
+When we model heterogeneity or use complicated models, both issues become very important. Need to be dealt with.
+
+
+
+
+
+# Part 3<BR> Using Bayesian inference to discipline the data
+
+1. Priors regularize, which combats overfitting and extreme estimates
+
+2. Priors can be learned from data
+
+3. A lot of extra information can be flexibly modeled
+
+
+
+
+
+## A simple Bayesian regression
+
+First we define the DGP:
+
+::: columns
+::: {.column width="50%"}
+Likelihood $P(D | H)$:
+
+$$y = a_0 + a_1 * x + \epsilon, \,\,\,\, \epsilon \sim N(0, \sigma)$$
+
+Coefficient priors $P(a_k)$:
+
+$$a_k \sim N(0, 100), \,\,\,k \in (0, 1)$$
+
+Residual variance prior $P(\sigma)$:
+
+$$\sigma \sim Exponential(\frac{1}{21})$$
+:::
+::: {.column width="50%"}
+```{r}
+#| message: false 
+#| echo: true
+#| eval: false
+fit <- brm(
+  y ~ x,
+  data = sample1,
+  chains = 4, cores = 4,
+  prior = c(
+    prior("normal(0, 100)", class = "b"),
+    prior("normal(0, 100)", class = "Intercept"),
+    prior("exponential(1.0/21.0)", class = "sigma")
+    )
+)
+```
+:::
+:::
+
+
+
+## No additional information in the DGP
+
+
+<BR>
+
+<div style="text-align: center">
+We basically get the same inference as with classic OLS
+</div>
+
+::: r-stack
+![](img/fig2-1.png){height="600"}
+:::
+
+
+
+
+
+## Imagine theory suggests that $a_1$ cannot be large
+
+Likelihood $P(D | H)$:
+
+$$y = a_0 + a_1 * x + \epsilon, \,\,\,\, \epsilon \sim N(0, \sigma)$$
+
+Coefficient priors $P(a_k)$:
+
+$$a_0 \sim N(0, 100)$$
+
+$$a_1 \sim N(0, 4)$$
+
+Residual variance prior $P(\sigma)$:
+
+$$\sigma \sim Exponential(\frac{1}{21})$$
+
+
+
+
+
+## A weakly informative prior disciplines the model
+
+<BR>
+
+<div style="text-align: center">
+Our posterior beliefs about $a_1$ have moved closer to the truth.
+</div>
+
+::: r-stack
+![](img/fig2-2.png){height="600"}
+:::
+
+
+## Posteriors are bascially a weighted average of the likelihood and the prior
+
+<BR>
+
+Assume $y\sim N(\mu, \sigma^2)$ with known sigma and a prior for $\mu \sim N(\mu_0, \sigma_0^2)$
+
+Then the posterior is a weighted average of the form:
+
+$$P(\mu | y) \sim N\left(\frac{1}{\frac{1}{\sigma^2_0} + \frac{n}{\sigma^2}} * \left(\frac{1}{\sigma^2_0}*\mu_0 + \frac{n}{\sigma^2}*\frac{\sum^n y}{n}\right), \frac{1}{\frac{1}{\sigma^2_0} + \frac{n}{\sigma^2}}\right)$$
+
+
+## Priors have little weight when data is informative
+
+An implication of the weighted average formula
+
+::: r-stack
+![](img/fig3.png){height="600"}
+:::
+
+
+## Priors help variable selection (think Lasso)
+
+::: columns
+::: {.column width="40%"}
+Especially relevant when:
+
+- Variables are noisy proxies
+- Variables are correlated (including interactions)
+
+If we can assume that only a few covariates are effectively non-zero, we want sparse priors 
+:::
+::: {.column width="60%"}
+![](img/sparse-prior.png){height="600"}
+:::
+:::
+
+::: aside
+<p style="font-size:.6em; color:grey;">
+Figure source: lectures [slides](https://avehtari.github.io/modelselection/) by Aki Vehtari
+</p>
+:::
+
+
+
+
+
+## Priors can be learned from the data
+
+We can estimate priors, assuming that units come from the same distribution
+
+::: columns
+::: {.column width="50%"}
+![](img/acrruals-shrinkage.png){height="650"}
+:::
+::: {.column width="50%"}
+
+$$
+\begin{align}
+    TA_{ijt} & = \beta_{0,jt}InvAt_{ijt-1} + \beta_{1,jt}\triangle CRev_{ijt}\\\nonumber
+     & + \beta_{2,jt}PPE_{ijt}
+\end{align}
+$$
+
+Priors:
+
+$$
+\begin{eqnarray}
+	\label{eq:priors}
+	\begin{pmatrix}
+	    \beta_{0,j,t}\\
+		\beta_{1,j,t}\\
+		\beta_{2,j,t}
+	\end{pmatrix} & \sim & N\left(\left(\begin{array}{c}
+		\mu_0\\
+		\mu_1 \\
+		\mu_2
+	\end{array}\right),\left(\begin{array}{ccc}
+		\sigma_{0} & \rho_{0,1} & \rho_{0,2} \\
+		\rho_{0,1} & \sigma_1 & \rho_{1,2} \\
+		\rho_{0,2} & \rho_{1,2} & \sigma_2
+	\end{array}\right)\right) \quad \forall j,t
+\end{eqnarray}
+$$
+Hyper-priors:
+
+$$
+\begin{align}
+    \mu_d & \sim N\left(0, 2.5\right) \quad \sigma_d \sim Exp\left(1\right) \quad  \forall d \nonumber \\
+    \rho & \sim LKJcorr(2)
+\end{align}
+$$
+:::
+:::
+
+## We want regularized measures + their uncertainty
+
+Measurement error has serious consequences for our inferences
+
+::: r-stack
+![](img/merr.png){height="700"}
+:::
+
+
+## Priors can identify latent variables
+
+We want to estimate newspaper slant. Assume that one needs room for interpretation to slant news:
+
+$$
+\begin{align}
+\textit{NrNegWords}_{i, j} & \sim  \text{Binom}(N_{words}, p_{neg, i, j})\\ \nonumber
+\text{logit}(p_{neg, i, j}) & = \textit{RoomInt}_{j} \times {OutlNeg}_{i} + BadNews_{j}
+\end{align}
+$$
+
+::: {.fragment .fade-in}
+Model is not identified because: $Room_j \times Outl_i = c*Room_j \times Outl_i/c$
+:::
+::: {.fragment .fade-in}
+Priors (non-negative $RoomInt$ + prior scale for $Outl$) identify it:
+
+$$
+\begin{eqnarray}
+	\begin{pmatrix}log(Room_j)\\
+		News_j
+	\end{pmatrix} & \sim & N\left(\left(\begin{array}{c}
+		\mu_{LRoom}\\
+		\mu_{News}
+	\end{array}\right),\left(\begin{array}{cc}
+		\sigma_{LRoom} & \rho \\
+		\rho & \sigma_{News}
+	\end{array}\right)\right)\\ \nonumber
+	Outl_i & \sim & N(0, 1)
+\end{eqnarray}
+$$
+:::
+
+::: aside
+<p style="font-size:.6em; color:grey;">
+See Schütt ([2020](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3051732)) for details
+</p>
+:::
+
+
+
+## Summary: Bayesian statistics is a useful tool because {.center}
+
+- Priors regularize, which combats overfitting and extreme estimates
+- Priors can be learned from data
+- A lot of extra information can be flexibly modeled
+
+Bayesian statistics is not the only way to do all this. It's advantage lies in its flexibility and in giving us powerful uncertainty measures for free.
+
+
+
+
+
+## {.center}
+
+::: r-fit-text
+Thank you for your attention
+:::
+Next up: coding practice ;)
+
+```{=html}
+<!--
+https://unsplash.com/s/photos/dice
+https://quarto.org/docs/presentations/revealjs/themes.html#sass-variables
+https://raw.githubusercontent.com/jthomasmock/quarto-presentation/master/quarto-curious.qmd https://rstudio-conf-2022.github.io/get-started-quarto/materials/07-plots-tables.html#/figure-divs
+https://htmlcolorcodes.com/
+https://www.tutorialspoint.com/how-to-write-text-outside-plot-using-ggplot2-in-r
+
+
+https://unsplash.com/photos/onnJOfF-okU
+https://unsplash.com/photos/wmObLzO2g-s
+https://unsplash.com/photos/60krlMMeWxU
+
+cool presentation:
+https://tech.popdata.org/pma-data-hub/posts/2022-07-01-ined-revealjs/
+https://github.com/IPUMS-Global-Health/ined-pma-2022/blob/main/slides.qmd
+-->
+```
+<!-- [You are sneaky!]{style="color: transparent;"} -->
+
+<!-- `r fontawesome::fa("link", "coralblue", height="45px")` -->
+
+```{r}
+# retrodesign <- function(A, s, alpha=.05, df=Inf, n.sims=10000){
+#   # Just back out n/d from df; keeps all functions with the same inputs
+#   n = 2 / (s^2)
+#   d = abs(A)
+# 
+#   ### boundary for alpha level t-test
+#   tc = qt(1-alpha/2, df = df)
+# 
+#   ### power
+#   power = pt(-tc, df = df, ncp=d/sqrt(2/n)) +
+#     1-pt( tc, df = df, ncp=d/sqrt(2/n))
+# 
+#   ### s-error rate
+#   type_s = pt(-tc, df = df, ncp=d/sqrt(2/n))/power
+# 
+#   ### simulate experiments
+#   x0 = rnorm(n.sims,0)
+# 
+#   ### m-error
+#   type_m = sapply(d, FUN = function(di) {
+#     x = abs(x0+di*sqrt(n/2))
+#     significant = x/s>tc
+#     return(mean(x[significant == 1]/sqrt(n/2))/di)
+#   })
+#   return(list(power = power, type_s = type_s, type_m = type_m))
+# }
+# retrodesign(2, 2.6535)
+# retrodesign(2, 2.6535)
+```
+
+
+
+```{r}
+#| message: false 
+# sample1 <- samples[[1, "data"]][[1]]
+# fit2 <- brm(
+#   y ~ x,
+#   data = sample1, 
+#   chains = 4, cores = 4,
+#   prior = c(
+#     prior("normal(0, 100)", class = "b"),
+#     prior("normal(0, 100)", class = "Intercept"),
+#     prior("exponential(1.0/21.0)", class = "sigma")
+#     ),
+#   refresh = 0
+# )
+```

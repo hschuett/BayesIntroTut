@@ -1,0 +1,40 @@
+/*-- scss:defaults --*/
+
+/* Add maven for code font (keep other xaringan defaults */
+@import url(https://fonts.googleapis.com/css?family=Source+Code+Pro);
+@import url(https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;600);
+
+$tilcol-blue: #003366;
+$tilcol-gold: #CC9933;
+$tilcol-lblue: #008EC6;
+$tilcol-lgold: #C3BCB2;
+$tilcol-yellow: #D9BC75;
+$tilcol-dgray: #4C4C4C;
+$code-col: #faf9f6;
+
+/*--
+$body-bg: #191919;
+$body-color: #fff;
+$link-color: #42affa;
+--*/
+$link-color: $tilcol-gold;
+$font-family-sans-serif: 'Montserrat';
+$font-family-monospace: "Source Code Pro";
+
+$presentation-font-size-root: 40px;
+$presentation-heading-font-weight: 600;
+$presentation-heading-letter-spacing: -0.0225em;
+$presentation-h1-font-size: 2.5em;
+$presentation-h2-font-size: 1.6em;
+$presentation-h3-font-size: 1.3em;
+$presentation-h4-font-size: 1em;
+$presentation-heading-line-height: 1.2;
+
+$code-block-bg: $code-col;
+$code-block-border-color: $code-col;
+
+/*--
+:root {
+    --r-heading-margin: 0 0 120px 0;
+}
+--*/
